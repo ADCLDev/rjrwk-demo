@@ -1,7 +1,7 @@
 // app/(auth)/reset-password/page.tsx
 "use client"
 
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -11,6 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Icons } from "@/components/ui/icons"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 const schema = z.object({
   password: z.string()
@@ -22,61 +23,67 @@ const schema = z.object({
   path: ["confirmPassword"],
 })
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get("token")
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
+  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle")
   const [message, setMessage] = useState("")
 
-  const form = useForm({
+  const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
-    defaultValues: { password: "", confirmPassword: "" },
+    defaultValues: {
+      password: "",
+      confirmPassword: "",
+    },
   })
 
-  async function onSubmit(data: z.infer<typeof schema>) {
-    if (!token) {
-      setStatus("error")
-      setMessage("Invalid reset token")
-      return
-    }
+  if (!token) {
+    return (
+      <Card className="w-full max-w-md">
+        <CardContent className="p-6">
+          <Alert variant="destructive">
+            <AlertDescription>Invalid reset token</AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    )
+  }
 
+  async function onSubmit(data: z.infer<typeof schema>) {
     try {
       setStatus("loading")
-      const res = await fetch("/api/auth/reset-password", {
+      setMessage("")
+
+      const response = await fetch("/api/auth/reset-password/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password: data.password }),
+        body: JSON.stringify({
+          token,
+          password: data.password,
+        }),
       })
 
-      if (res.ok) {
+      if (response.ok) {
         router.push("/login?reset=success")
       } else {
-        const error = await res.json()
+        const error = await response.json()
         throw new Error(error.message)
       }
     } catch (error) {
       setStatus("error")
       setMessage(error instanceof Error ? error.message : "Failed to reset password")
+    } finally {
+      setStatus("idle")
     }
   }
 
-  if (!token) {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>Invalid reset token</AlertDescription>
-      </Alert>
-    )
-  }
-
   return (
-    <div className="container flex h-screen w-screen flex-col items-center justify-center">
-      <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
-        <div className="flex flex-col space-y-2 text-center">
-          <h1 className="text-2xl font-semibold">Reset Password</h1>
-          <p className="text-sm text-muted-foreground">Enter your new password</p>
-        </div>
-
+    <Card className="w-full max-w-md">
+      <CardHeader>
+        <CardTitle className="text-center">Reset Password</CardTitle>
+      </CardHeader>
+      <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -118,7 +125,28 @@ export default function ResetPasswordPage() {
             </Button>
           </form>
         </Form>
-      </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <div className="container flex h-screen w-screen flex-col items-center justify-center">
+      <Suspense
+        fallback={
+          <Card className="w-full max-w-md">
+            <CardContent className="flex flex-col items-center justify-center p-6">
+              <Icons.spinner className="h-8 w-8 animate-spin" />
+              <p className="mt-2 text-center text-muted-foreground">
+                Loading reset password form...
+              </p>
+            </CardContent>
+          </Card>
+        }
+      >
+        <ResetPasswordContent />
+      </Suspense>
     </div>
   )
 }

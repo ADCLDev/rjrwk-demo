@@ -1,23 +1,16 @@
-import { PrismaClient } from "@prisma/client"
+const { PrismaClient } = require('@prisma/client')
 
 const prisma = new PrismaClient()
 
-async function testConnection() {
+async function main() {
   try {
-    // Test connection
-    await prisma.$connect()
-    console.log("✓ Database connected")
-
-    // List users
     const users = await prisma.user.findMany()
-    console.log("\nUsers in database:", users.length)
-    console.log(JSON.stringify(users, null, 2))
-
-  } catch (e) {
-    console.error("Database error:", e)
+    console.log("Users:", users)
+  } catch (error) {
+    console.error("Error:", error)
   } finally {
     await prisma.$disconnect()
   }
 }
 
-testConnection()
+main()
